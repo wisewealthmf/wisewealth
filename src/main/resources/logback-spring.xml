@@ -1,0 +1,21 @@
+<configuration>
+
+    <property name="LOG_PATTERN" value="{&quot;timestamp&quot;:&quot;%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}&quot;,&quot;level&quot;:&quot;%p&quot;,&quot;thread&quot;:&quot;%t&quot;,&quot;logger&quot;:&quot;%c&quot;,&quot;requestId&quot;:&quot;%X{requestId}&quot;,&quot;message&quot;:&quot;%replace(%msg){'&quot;','\\\'&quot;'}&quot;}%n" />
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <immediateFlush>true</immediateFlush>
+        </encoder>
+    </appender>
+
+    <!-- Log levels tuning -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+
+    <logger name="com.wisewealth.security" level="DEBUG"/>
+    <logger name="com.wisewealth.controller" level="INFO"/>
+    <logger name="com.wisewealth.service" level="INFO"/>
+
+</configuration>
