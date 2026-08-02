@@ -1,13 +1,14 @@
 cors:
-  allowed-origin: http://localhost:3000
-  extra-origins: http://localhost:8080
+  allowed-origin: https://wisewealth.firm.in
+  extra-origins: https://www.wisewealth.firm.in
 
 spring:
   mail:
     host: smtp-relay.brevo.com
     port: 587
-    username: 
-    password:
+    username: ${BREVO_USERNAME}
+    password: ${BREVO_PASSWORD}
+
     properties:
       mail:
         smtp:
