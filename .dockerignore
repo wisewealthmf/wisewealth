@@ -1,0 +1,22 @@
+# Build output — copied from inside the container, not needed in context
+target/
+
+# Local dev files that must never enter the image
+.env
+.env.*
+src/main/resources/application-local.properties
+
+# IDE / OS noise
+.idea/
+*.iml
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Docs / SQL scripts (not needed at runtime)
+*.md
+*.sql
+*.txt
+wealth-check-reports/
