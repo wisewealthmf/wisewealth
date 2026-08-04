@@ -1,124 +1,95 @@
 package com.wisewealth.service;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.Address;
-import jakarta.mail.internet.MimeMessage;
-import org.springframework.mail.javamail.JavaMailSenderImpl;
-import java.util.Arrays;
-import java.util.stream.Collectors;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class EmailService {
 
-    private final JavaMailSender mailSender;
+    private static final String BREVO_SEND_URL = "https://api.brevo.com/v3/smtp/email";
 
-    @Value("${mail.from:${spring.mail.username:}}")
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    @Value("${brevo.api-key:}")
+    private String brevoApiKey;
+
+    @Value("${mail.from:wisewealth.mf@gmail.com}")
     private String mailFrom;
 
-    @org.springframework.scheduling.annotation.Async("taskExecutor")
+    @Async("taskExecutor")
     public void sendReplyEmail(
             String to,
             String customerName,
             String originalQuery,
             String reply) {
-        try {
-            MimeMessage mimeMessage = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, "utf-8");
 
-            String html = String.format("""
-                    <html>
-                    <body>
+        String html = String.format("""
+                <html>
+                <body>
 
-                    <h2>Hello %s</h2>
+                <h2>Hello %s</h2>
 
-                    <p>Thank you for connecting with WiseWealth.</p>
+                <p>Thank you for connecting with WiseWealth.</p>
 
-                    <p><b>Your Query</b></p>
+                <p><b>Your Query</b></p>
 
-                    <p>%s</p>
+                <p>%s</p>
 
-                    <p><b>Our Reply</b></p>
+                <p><b>Our Reply</b></p>
 
-                    <p>%s</p>
+                <p>%s</p>
 
-                    </body>
-                    </html>
-                    """, customerName, originalQuery, reply);
+                </body>
+                </html>
+                """, customerName, originalQuery, reply);
 
-            if (mailFrom != null && !mailFrom.isBlank()) {
-                helper.setFrom(mailFrom);
-            }
-            if (mailFrom != null && !mailFrom.isBlank()) {
-                helper.setFrom(mailFrom);
-            }
-            helper.setTo(to);
-            helper.setSubject("Reply to your query");
-            helper.setText(html, true);
-
-            // Log prepared message and mail sender details for debugging
-            try {
-                mimeMessage.saveChanges();
-                String fromStr = mimeMessage.getFrom() == null ? "" : Arrays.stream(mimeMessage.getFrom()).map(Address::toString).collect(Collectors.joining(","));
-                String recipStr = mimeMessage.getAllRecipients() == null ? "" : Arrays.stream(mimeMessage.getAllRecipients()).map(Address::toString).collect(Collectors.joining(","));
-                log.debug("Prepared MimeMessage - from={}, recipients={}, subject={}", fromStr, recipStr, mimeMessage.getSubject());
-            } catch (Exception e) {
-                log.debug("Unable to read MimeMessage headers", e);
-            }
-
-            if (mailSender instanceof JavaMailSenderImpl) {
-                JavaMailSenderImpl impl = (JavaMailSenderImpl) mailSender;
-                log.debug("MailSenderImpl configured host={} port={} username={}", impl.getHost(), impl.getPort(), impl.getUsername());
-            } else {
-                log.debug("MailSender implementation: {}", mailSender.getClass().getName());
-            }
-
-            mailSender.send(mimeMessage);
-            log.info("Sent reply email to {}", to);
-        } catch (Exception ex) {
-            log.error("Failed to send reply email to {}", to, ex);
-        }
+        sendHtmlEmail(to, "Reply to your query", html);
     }
 
-    @org.springframework.scheduling.annotation.Async("taskExecutor")
+    @Async("taskExecutor")
     public void sendHtmlEmail(String to, String subject, String htmlBody) {
         try {
-            MimeMessage mimeMessage = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, "utf-8");
-            if (mailFrom != null && !mailFrom.isBlank()) {
-                helper.setFrom(mailFrom);
-            }
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(htmlBody, true);
+            String payload = String.format("""
+                    {
+                      "sender":  { "email": "%s" },
+                      "to":      [{ "email": "%s" }],
+                      "subject": "%s",
+                      "htmlContent": %s
+                    }
+                    """,
+                    escape(mailFrom),
+                    escape(to),
+                    escape(subject),
+                    toJsonString(htmlBody));
 
-            try {
-                mimeMessage.saveChanges();
-                String fromStr = mimeMessage.getFrom() == null ? "" : Arrays.stream(mimeMessage.getFrom()).map(Address::toString).collect(Collectors.joining(","));
-                String recipStr = mimeMessage.getAllRecipients() == null ? "" : Arrays.stream(mimeMessage.getAllRecipients()).map(Address::toString).collect(Collectors.joining(","));
-                log.debug("Prepared MimeMessage - from={}, recipients={}, subject={}", fromStr, recipStr, mimeMessage.getSubject());
-            } catch (Exception e) {
-                log.debug("Unable to read MimeMessage headers", e);
-            }
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("api-key", brevoApiKey);
 
-            if (mailSender instanceof JavaMailSenderImpl) {
-                JavaMailSenderImpl impl = (JavaMailSenderImpl) mailSender;
-                log.debug("MailSenderImpl configured host={} port={} username={}", impl.getHost(), impl.getPort(), impl.getUsername());
-            } else {
-                log.debug("MailSender implementation: {}", mailSender.getClass().getName());
-            }
+            HttpEntity<String> request = new HttpEntity<>(payload, headers);
+            restTemplate.postForObject(BREVO_SEND_URL, request, String.class);
 
-            mailSender.send(mimeMessage);
             log.info("Sent email '{}' to {}", subject, to);
         } catch (Exception ex) {
             log.error("Failed to send email '{}' to {}", subject, to, ex);
         }
+    }
+
+    /** Escapes a plain string for safe embedding inside a JSON string value. */
+    private static String escape(String value) {
+        if (value == null) return "";
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    /** Wraps arbitrary HTML in a JSON string, escaping as needed. */
+    private static String toJsonString(String html) {
+        return "\"" + escape(html) + "\"";
     }
 }
